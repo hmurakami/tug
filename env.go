@@ -43,10 +43,13 @@ func configure(flags globalFlags) (env, error) {
 		src = f
 	}
 
-	// Prefer the merged file if a previous "tug up --override" created one.
+	// Prefer the merged file if a previous "tug up --override" created one,
+	// but only when the compose file was auto-detected (no explicit -f/--file).
 	effective := src
-	if _, err := os.Stat(mergedPath); err == nil {
-		effective = mergedPath
+	if flags.composeFile == "" {
+		if _, err := os.Stat(mergedPath); err == nil {
+			effective = mergedPath
+		}
 	}
 
 	return env{

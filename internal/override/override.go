@@ -30,6 +30,17 @@ const (
 	KindTCP
 )
 
+func (k ServiceKind) String() string {
+	switch k {
+	case KindHTTP:
+		return "http"
+	case KindTCP:
+		return "tcp"
+	default:
+		return fmt.Sprintf("ServiceKind(%d)", int(k))
+	}
+}
+
 // ClassifiedService holds a service with its classification and resolved port info.
 type ClassifiedService struct {
 	compose.Service

@@ -5,6 +5,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/mickamy/tug/internal/config"
 	"github.com/mickamy/tug/internal/port"
 	"github.com/mickamy/tug/internal/traefik"
 )
@@ -37,13 +38,14 @@ type ClassifiedService struct {
 	ContainerPort uint16 // well-known container port for TCP services
 }
 
-// Classify categorizes each service as HTTP or TCP based on its container ports.
-func Classify(proj Project) []ClassifiedService {
+// Classify categorizes each service as HTTP or TCP.
+// Priority: config override > well-known container port detection.
+func Classify(proj Project, cfg config.Config) []ClassifiedService {
 	used := make(map[uint16]struct{})
 	res := make([]ClassifiedService, len(proj.Services))
 
 	for i, svc := range proj.Services {
-		kind, cp := detectKind(svc)
+		kind, cp := detectKind(svc, cfg)
 		res[i] = ClassifiedService{
 			Service:       svc,
 			Kind:          kind,
@@ -59,8 +61,21 @@ func Classify(proj Project) []ClassifiedService {
 	return res
 }
 
-// detectKind checks whether any of the service's container ports is a well-known TCP port.
-func detectKind(svc Service) (ServiceKind, uint16) {
+// detectKind checks config overrides first, then falls back to well-known port detection.
+func detectKind(svc Service, cfg config.Config) (ServiceKind, uint16) {
+	if sc, ok := cfg.Services[svc.Name]; ok {
+		switch sc.Kind {
+		case "tcp":
+			// Use the first declared container port for TCP remapping.
+			if len(svc.Ports) > 0 {
+				return KindTCP, svc.Ports[0].Container
+			}
+			return KindTCP, 0
+		case "http":
+			return KindHTTP, 0
+		}
+	}
+
 	for _, p := range svc.Ports {
 		if _, ok := tcpPorts[p.Container]; ok {
 			return KindTCP, p.Container

@@ -20,8 +20,14 @@ type Command struct {
 	Runtime string `yaml:"runtime"`
 }
 
+// ServiceConfig holds per-service overrides.
+type ServiceConfig struct {
+	Kind string `yaml:"kind"` // "http" or "tcp"
+}
+
 type Config struct {
-	Command Command `yaml:"command"`
+	Command  Command                  `yaml:"command"`
+	Services map[string]ServiceConfig `yaml:"services"`
 }
 
 func defaults() Config {
@@ -92,5 +98,11 @@ func merge(base *Config, override Config) {
 	}
 	if override.Command.Runtime != "" {
 		base.Command.Runtime = override.Command.Runtime
+	}
+	for name, svc := range override.Services {
+		if base.Services == nil {
+			base.Services = make(map[string]ServiceConfig)
+		}
+		base.Services[name] = svc
 	}
 }

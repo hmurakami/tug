@@ -67,6 +67,49 @@ func TestLoad_LocalOverridesGlobal(t *testing.T) {
 	}
 }
 
+func TestLoad_ServiceOverrides(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	globalDir := filepath.Join(dir, "global")
+	if err := os.MkdirAll(globalDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	globalPath := filepath.Join(globalDir, "tug.yaml")
+	if err := os.WriteFile(
+		globalPath,
+		[]byte("services:\n  db:\n    kind: tcp\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	localDir := filepath.Join(dir, "project")
+	if err := os.MkdirAll(localDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// Local overrides db to http, adds api as http.
+	if err := os.WriteFile(
+		filepath.Join(localDir, "tug.yaml"),
+		[]byte("services:\n  db:\n    kind: http\n  api:\n    kind: http\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(localDir, globalPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Services["db"].Kind != "http" {
+		t.Errorf("db kind: got %q, want %q", cfg.Services["db"].Kind, "http")
+	}
+	if cfg.Services["api"].Kind != "http" {
+		t.Errorf("api kind: got %q, want %q", cfg.Services["api"].Kind, "http")
+	}
+}
+
 func TestLoad_MalformedYAML(t *testing.T) {
 	t.Parallel()
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"text/tabwriter"
 
 	"github.com/mickamy/tug/internal/compose"
@@ -111,11 +112,45 @@ func handlePs(ctx context.Context, flags globalFlags, args []string) error {
 		return fmt.Errorf("classifying services: %w", err)
 	}
 
-	_ = args // reserved for future filtering
 	statuses := containerStatuses(ctx, e.runner, e.composeFile)
+	rows := buildPsRows(proj, classified, statuses)
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "SERVICE\tTYPE\tURL/PORT\tSTATUS")
+	if slices.Contains(args, "--json") {
+		return writePsJSON(rows)
+	}
+	return writePsTable(rows)
+}
+
+func passthrough(ctx context.Context, flags globalFlags, args []string) error {
+	e, err := configure(flags)
+	if err != nil {
+		return err
+	}
+
+	composeArgs := runFileArgs(e.composeFile)
+	composeArgs = append(composeArgs, args...)
+
+	cmd := args[0]
+	if err := e.runner.Compose(ctx, composeArgs...); err != nil {
+		return fmt.Errorf("compose %s: %w", cmd, err)
+	}
+	return nil
+}
+
+// psRow represents a single row in the tug ps output.
+type psRow struct {
+	Service string `json:"service"`
+	Type    string `json:"type"`
+	URLPort string `json:"url"`
+	Status  string `json:"status"`
+}
+
+func buildPsRows(
+	proj compose.Project,
+	classified []override.ClassifiedService,
+	statuses map[string]string,
+) []psRow {
+	var rows []psRow
 	for _, cs := range classified {
 		status := statuses[cs.Name]
 		for _, cp := range cs.ClassifiedPorts {
@@ -132,10 +167,24 @@ func handlePs(ctx context.Context, flags globalFlags, args []string) error {
 					)
 				}
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-				cs.Name, cp.Kind, urlPort, status,
-			)
+			rows = append(rows, psRow{
+				Service: cs.Name,
+				Type:    cp.Kind.String(),
+				URLPort: urlPort,
+				Status:  status,
+			})
 		}
+	}
+	return rows
+}
+
+func writePsTable(rows []psRow) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "SERVICE\tTYPE\tURL/PORT\tSTATUS")
+	for _, r := range rows {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			r.Service, r.Type, r.URLPort, r.Status,
+		)
 	}
 	if err := w.Flush(); err != nil {
 		return fmt.Errorf("flushing output: %w", err)
@@ -143,18 +192,11 @@ func handlePs(ctx context.Context, flags globalFlags, args []string) error {
 	return nil
 }
 
-func passthrough(ctx context.Context, flags globalFlags, args []string) error {
-	e, err := configure(flags)
-	if err != nil {
-		return err
-	}
-
-	composeArgs := runFileArgs(e.composeFile)
-	composeArgs = append(composeArgs, args...)
-
-	cmd := args[0]
-	if err := e.runner.Compose(ctx, composeArgs...); err != nil {
-		return fmt.Errorf("compose %s: %w", cmd, err)
+func writePsJSON(rows []psRow) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(rows); err != nil {
+		return fmt.Errorf("encoding JSON: %w", err)
 	}
 	return nil
 }

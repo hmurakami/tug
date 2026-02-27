@@ -22,10 +22,7 @@ func NetworkName() string {
 
 // EnsureNetwork creates the tug Docker network if it does not exist.
 func EnsureNetwork(ctx context.Context, runner exec.Runner) error {
-	out, _ := runner.RuntimeOutput(ctx,
-		"network", "ls", "--filter", "name=^"+networkName+"$", "--format", "{{.Name}}",
-	)
-	if strings.TrimSpace(string(out)) == networkName {
+	if _, err := runner.RuntimeOutput(ctx, "network", "inspect", networkName); err == nil {
 		return nil
 	}
 	if err := runner.Runtime(ctx, "network", "create", networkName); err != nil {

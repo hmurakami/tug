@@ -33,7 +33,7 @@ func handleUp(ctx context.Context, flags globalFlags, args []string) error {
 		files = append(files, flags.overrideFiles...)
 		merged, err := merge.Compose(ctx, e.runner, files...)
 		if err != nil {
-			return fmt.Errorf("merging compose files: %w", err)
+			return fmt.Errorf("preparing merged compose: %w", err)
 		}
 		if err := os.WriteFile(mergedPath, merged, 0o600); err != nil {
 			return fmt.Errorf("writing merged compose: %w", err)

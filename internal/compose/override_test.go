@@ -18,7 +18,10 @@ func TestClassify_HTTP(t *testing.T) {
 		},
 	}
 
-	result := compose.Classify(proj, config.Config{})
+	result, err := compose.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(result) != 1 {
 		t.Fatalf("got %d services, want 1", len(result))
 	}
@@ -53,7 +56,10 @@ func TestClassify_TCP_ByPort(t *testing.T) {
 				},
 			}
 
-			result := compose.Classify(proj, config.Config{})
+			result, err := compose.Classify(proj, config.Config{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if result[0].Kind != compose.KindTCP {
 				t.Errorf("port %d: got KindHTTP, want KindTCP", tt.containerPort)
 			}
@@ -74,7 +80,10 @@ func TestClassify_TCP_CustomImage(t *testing.T) {
 		},
 	}
 
-	result := compose.Classify(proj, config.Config{})
+	result, err := compose.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if result[0].Kind != compose.KindTCP {
 		t.Error("custom image with well-known port should be KindTCP")
 	}
@@ -97,7 +106,10 @@ func TestClassify_ConfigOverride_TCP(t *testing.T) {
 		},
 	}
 
-	result := compose.Classify(proj, cfg)
+	result, err := compose.Classify(proj, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if result[0].Kind != compose.KindTCP {
 		t.Error("config override to tcp should take effect")
 	}
@@ -123,7 +135,10 @@ func TestClassify_ConfigOverride_HTTP(t *testing.T) {
 		},
 	}
 
-	result := compose.Classify(proj, cfg)
+	result, err := compose.Classify(proj, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if result[0].Kind != compose.KindHTTP {
 		t.Error("config override to http should take effect")
 	}
@@ -139,8 +154,14 @@ func TestClassify_DeterministicPort(t *testing.T) {
 		},
 	}
 
-	a := compose.Classify(proj, config.Config{})
-	b := compose.Classify(proj, config.Config{})
+	a, err := compose.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, err := compose.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if a[0].HostPort != b[0].HostPort {
 		t.Errorf("expected deterministic port, got %d and %d", a[0].HostPort, b[0].HostPort)
 	}
@@ -155,7 +176,10 @@ func TestGenerateOverride_HTTP(t *testing.T) {
 			{Name: "api", Image: "node:20", Ports: []compose.Port{{Host: 3000, Container: 3000}}},
 		},
 	}
-	classified := compose.Classify(proj, config.Config{})
+	classified, err := compose.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	data, err := compose.GenerateOverride(proj, classified)
 	if err != nil {
@@ -183,7 +207,10 @@ func TestGenerateOverride_TCP(t *testing.T) {
 			{Name: "db", Image: "postgres:16", Ports: []compose.Port{{Host: 5432, Container: 5432}}},
 		},
 	}
-	classified := compose.Classify(proj, config.Config{})
+	classified, err := compose.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	data, err := compose.GenerateOverride(proj, classified)
 	if err != nil {

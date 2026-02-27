@@ -40,7 +40,7 @@ type ClassifiedService struct {
 
 // Classify categorizes each service as HTTP or TCP.
 // Priority: config override > well-known container port detection.
-func Classify(proj Project, cfg config.Config) []ClassifiedService {
+func Classify(proj Project, cfg config.Config) ([]ClassifiedService, error) {
 	used := make(map[uint16]struct{})
 	res := make([]ClassifiedService, len(proj.Services))
 
@@ -52,13 +52,16 @@ func Classify(proj Project, cfg config.Config) []ClassifiedService {
 			ContainerPort: cp,
 		}
 		if kind == KindTCP && cp > 0 {
-			hp := port.Compute(proj.Name, svc.Name, cp, used)
+			hp, err := port.Compute(proj.Name, svc.Name, cp, used)
+			if err != nil {
+				return nil, fmt.Errorf("service %s: %w", svc.Name, err)
+			}
 			res[i].HostPort = hp
 			used[hp] = struct{}{}
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 // detectKind checks config overrides first, then falls back to well-known port detection.

@@ -1,9 +1,13 @@
 package port
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
 )
+
+// ErrNoAvailablePort is returned when all ports in the range are occupied.
+var ErrNoAvailablePort = errors.New("no available port in range")
 
 const (
 	rangeMin = 10000
@@ -13,8 +17,8 @@ const (
 // Compute returns a deterministic host port in [10000, 60000) derived from
 // the project name, service name, and container port using FNV-1a hashing.
 // If the initial slot collides with a member of used, it increments until a
-// free slot is found.
-func Compute(project, service string, containerPort uint16, used map[uint16]struct{}) uint16 {
+// free slot is found. Returns ErrNoAvailablePort if all slots are occupied.
+func Compute(project, service string, containerPort uint16, used map[uint16]struct{}) (uint16, error) {
 	key := fmt.Sprintf("%s/%s/%d", project, service, containerPort)
 
 	h := fnv.New32a()
@@ -24,12 +28,15 @@ func Compute(project, service string, containerPort uint16, used map[uint16]stru
 	size := uint32(rangeMax - rangeMin)
 	port := uint16(h.Sum32()%size) + rangeMin
 
-	for _, ok := used[port]; ok; _, ok = used[port] {
+	for i := 0; i < int(size); i++ {
+		if _, ok := used[port]; !ok {
+			return port, nil
+		}
 		port++
 		if port >= rangeMax {
 			port = rangeMin
 		}
 	}
 
-	return port
+	return 0, ErrNoAvailablePort
 }

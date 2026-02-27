@@ -48,7 +48,7 @@ func TestLoad_LocalOverridesGlobal(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(
-		filepath.Join(localDir, "tug.yaml"),
+		filepath.Join(localDir, ".tug.yaml"),
 		[]byte("command:\n  compose: \"local-compose\"\n"),
 		0o600,
 	); err != nil {
@@ -91,7 +91,7 @@ func TestLoad_ServiceOverrides(t *testing.T) {
 	}
 	// Local overrides db to http, adds api as http.
 	if err := os.WriteFile(
-		filepath.Join(localDir, "tug.yaml"),
+		filepath.Join(localDir, ".tug.yaml"),
 		[]byte("services:\n  db:\n    kind: http\n  api:\n    kind: http\n"),
 		0o600,
 	); err != nil {
@@ -116,7 +116,7 @@ func TestLoad_PortOverrides(t *testing.T) {
 	dir := t.TempDir()
 
 	if err := os.WriteFile(
-		filepath.Join(dir, "tug.yaml"),
+		filepath.Join(dir, ".tug.yaml"),
 		[]byte("services:\n  sql-tap:\n    ports:\n      8081: http\n      9091: tcp\n"),
 		0o600,
 	); err != nil {
@@ -143,7 +143,7 @@ func TestLoad_PortOverrideWithDefaultKind(t *testing.T) {
 	dir := t.TempDir()
 
 	if err := os.WriteFile(
-		filepath.Join(dir, "tug.yaml"),
+		filepath.Join(dir, ".tug.yaml"),
 		[]byte("services:\n  proxy:\n    kind: tcp\n    ports:\n      8080: http\n"),
 		0o600,
 	); err != nil {
@@ -170,7 +170,7 @@ func TestLoad_InvalidPortKind(t *testing.T) {
 	dir := t.TempDir()
 
 	if err := os.WriteFile(
-		filepath.Join(dir, "tug.yaml"),
+		filepath.Join(dir, ".tug.yaml"),
 		[]byte("services:\n  svc:\n    ports:\n      8080: udp\n"),
 		0o600,
 	); err != nil {
@@ -189,7 +189,7 @@ func TestLoad_InvalidKind(t *testing.T) {
 	dir := t.TempDir()
 
 	if err := os.WriteFile(
-		filepath.Join(dir, "tug.yaml"),
+		filepath.Join(dir, ".tug.yaml"),
 		[]byte("services:\n  db:\n    kind: udp\n"),
 		0o600,
 	); err != nil {
@@ -208,7 +208,7 @@ func TestLoad_MalformedYAML(t *testing.T) {
 	dir := t.TempDir()
 
 	if err := os.WriteFile(
-		filepath.Join(dir, "tug.yaml"),
+		filepath.Join(dir, ".tug.yaml"),
 		[]byte(":\nbad yaml [[["),
 		0o600,
 	); err != nil {

@@ -64,7 +64,7 @@ func defaults() Config {
 	}
 }
 
-// Load reads config from tug.yaml in projectDir (project-local) and globalPath (global),
+// Load reads config from .tug.yaml in projectDir (project-local) and globalPath (global),
 // merging with project-local taking priority over global.
 // Both files are optional; missing files are silently ignored.
 func Load(projectDir, globalPath string) (Config, error) {
@@ -78,7 +78,7 @@ func Load(projectDir, globalPath string) (Config, error) {
 		merge(&cfg, global)
 	}
 
-	local, err := loadFile(filepath.Join(projectDir, "tug.yaml"))
+	local, err := loadFile(filepath.Join(projectDir, ".tug.yaml"))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return cfg, err
 	}
@@ -90,7 +90,7 @@ func Load(projectDir, globalPath string) (Config, error) {
 }
 
 // LoadDefault loads config using the current directory and the standard
-// global config path (~/.config/tug.yaml).
+// global config path (~/.config/.tug.yaml).
 func LoadDefault() (Config, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -99,7 +99,7 @@ func LoadDefault() (Config, error) {
 
 	var globalPath string
 	if home, err := os.UserHomeDir(); err == nil {
-		globalPath = filepath.Join(home, ".config", "tug.yaml")
+		globalPath = filepath.Join(home, ".config", ".tug.yaml")
 	}
 
 	return Load(cwd, globalPath)

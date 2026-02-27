@@ -145,7 +145,7 @@ func passthrough(ctx context.Context, flags globalFlags, args []string) error {
 type psRow struct {
 	Service string `json:"service"`
 	Type    string `json:"type"`
-	URLPort string `json:"url"`
+	URLPort string `json:"endpoint"`
 	Status  string `json:"status"`
 }
 

@@ -81,7 +81,6 @@ func detectKind(svc compose.Service, cfg config.Config) (ServiceKind, uint16) {
 	if sc, ok := cfg.Services[svc.Name]; ok {
 		switch sc.Kind {
 		case "tcp":
-			// Use the first declared container port for TCP remapping.
 			if len(svc.Ports) > 0 {
 				return KindTCP, svc.Ports[0].Container
 			}
@@ -100,13 +99,19 @@ func detectKind(svc compose.Service, cfg config.Config) (ServiceKind, uint16) {
 }
 
 // Generate produces the override YAML for the given project and classified services.
-// HTTP services get Traefik labels; TCP services get deterministic port remapping.
+// HTTP services get Traefik labels + tug network; TCP services get deterministic port
+// remapping with !override to replace (not append) the original ports.
 func Generate(proj compose.Project, services []ClassifiedService) ([]byte, error) {
-	override := map[string]any{
+	root := map[string]any{
 		"services": buildServices(proj.Name, services),
+		"networks": map[string]any{
+			traefik.NetworkName(): map[string]any{
+				"external": true,
+			},
+		},
 	}
 
-	data, err := yaml.Marshal(override)
+	data, err := yaml.Marshal(root)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling override: %w", err)
 	}
@@ -146,7 +151,7 @@ func buildTCPService(cs ClassifiedService) map[string]any {
 	}
 
 	return map[string]any{
-		"ports": []map[string]any{
+		"ports": overrideSeq{
 			{
 				"target":    cs.ContainerPort,
 				"published": cs.HostPort,
@@ -155,4 +160,20 @@ func buildTCPService(cs ClassifiedService) map[string]any {
 			},
 		},
 	}
+}
+
+// overrideSeq marshals as a YAML sequence with the !override tag.
+// Docker Compose v2.24+ uses this to fully replace (not merge) the original sequence.
+type overrideSeq []map[string]any
+
+func (s overrideSeq) MarshalYAML() (any, error) {
+	seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!override"}
+	for _, item := range s {
+		var n yaml.Node
+		if err := n.Encode(item); err != nil {
+			return nil, fmt.Errorf("encoding override item: %w", err)
+		}
+		seq.Content = append(seq.Content, &n)
+	}
+	return seq, nil
 }

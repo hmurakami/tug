@@ -188,14 +188,14 @@ func TestGenerate_HTTP(t *testing.T) {
 	}
 
 	out := string(data)
-	if !strings.Contains(out, "traefik.enable=true") {
-		t.Error("missing traefik.enable label")
-	}
-	if !strings.Contains(out, "api.myapp.localhost") {
-		t.Error("missing host rule")
-	}
-	if !strings.Contains(out, "tug") {
-		t.Error("missing tug network")
+	for _, want := range []string{
+		"traefik.enable=true",
+		"api.myapp.localhost",
+		"external: true",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in output:\n%s", want, out)
+		}
 	}
 }
 
@@ -219,10 +219,41 @@ func TestGenerate_TCP(t *testing.T) {
 	}
 
 	out := string(data)
-	if !strings.Contains(out, "target: 5432") {
-		t.Error("missing target port")
+	for _, want := range []string{
+		"!override",
+		"target: 5432",
+		"protocol: tcp",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in output:\n%s", want, out)
+		}
 	}
-	if !strings.Contains(out, "protocol: tcp") {
-		t.Error("missing protocol")
+}
+
+func TestGenerate_NetworkSection(t *testing.T) {
+	t.Parallel()
+
+	proj := compose.Project{
+		Name: "myapp",
+		Services: []compose.Service{
+			{Name: "api", Image: "node:20"},
+		},
+	}
+	classified, err := override.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := override.Generate(proj, classified)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := string(data)
+	if !strings.Contains(out, "networks:") {
+		t.Errorf("missing networks section in output:\n%s", out)
+	}
+	if !strings.Contains(out, "external: true") {
+		t.Errorf("missing external: true in output:\n%s", out)
 	}
 }

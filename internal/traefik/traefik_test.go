@@ -63,7 +63,7 @@ func TestEnsureNetwork_Creates(t *testing.T) {
 	m := &mockRunner{
 		runtimeOutputFunc: func(args []string) ([]byte, error) {
 			// "network inspect tug" fails → network does not exist
-			return nil, errors.New("not found")
+			return nil, errors.New("No such network: tug")
 		},
 	}
 
@@ -84,7 +84,7 @@ func TestEnsureNetwork_CreateFails(t *testing.T) {
 
 	m := &mockRunner{
 		runtimeOutputFunc: func(_ []string) ([]byte, error) {
-			return nil, errors.New("not found")
+			return nil, errors.New("No such network: tug")
 		},
 		runtimeFunc: func(_ []string) error {
 			return errors.New("permission denied")
@@ -97,6 +97,28 @@ func TestEnsureNetwork_CreateFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "permission denied") {
 		t.Errorf("expected permission denied in error, got %v", err)
+	}
+}
+
+func TestEnsureNetwork_InspectError(t *testing.T) {
+	t.Parallel()
+
+	m := &mockRunner{
+		runtimeOutputFunc: func(_ []string) ([]byte, error) {
+			// Docker daemon unavailable — not a "not found" error
+			return nil, errors.New("Cannot connect to the Docker daemon")
+		},
+	}
+
+	err := traefik.EnsureNetwork(t.Context(), m)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "inspecting network") {
+		t.Errorf("expected 'inspecting network' in error, got %v", err)
+	}
+	if len(m.runtimeCalls) != 0 {
+		t.Errorf("expected no Runtime calls (should not attempt create), got %d", len(m.runtimeCalls))
 	}
 }
 

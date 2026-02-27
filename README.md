@@ -69,7 +69,7 @@ make install
 ### Requirements
 
 - Docker (or Podman) with Compose v2.24+
-- Ports 80 available for Traefik
+- Port 80 available for Traefik
 
 ## Usage
 

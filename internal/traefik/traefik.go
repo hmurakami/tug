@@ -59,7 +59,7 @@ func EnsureRunning(ctx context.Context, runner exec.Runner) error {
 		"--name", containerName,
 		"--network", networkName,
 		"--restart=unless-stopped",
-		"-p", "80:80",
+		"-p", "127.0.0.1:80:80",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock:ro",
 		traefikImage,
 		"--api.insecure=true",

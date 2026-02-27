@@ -13,35 +13,42 @@ import (
 
 var errEmptyCommand = errors.New("empty command")
 
-// Runner executes compose and runtime commands based on config.
-type Runner struct {
+// Runner abstracts compose and runtime command execution.
+type Runner interface {
+	Compose(ctx context.Context, args ...string) error
+	Runtime(ctx context.Context, args ...string) error
+	RuntimeOutput(ctx context.Context, args ...string) ([]byte, error)
+	ComposeOutput(ctx context.Context, args ...string) ([]byte, error)
+}
+
+type runner struct {
 	cfg config.Config
 }
 
 // New creates a Runner from the given config.
 func New(cfg config.Config) Runner {
-	return Runner{cfg: cfg}
+	return &runner{cfg: cfg}
 }
 
 // Compose runs a compose command (e.g. "docker compose up") with the given
 // args, inheriting stdin/stdout/stderr.
-func (r Runner) Compose(ctx context.Context, args ...string) error {
+func (r *runner) Compose(ctx context.Context, args ...string) error {
 	return r.run(ctx, r.cfg.Command.Compose, args)
 }
 
 // Runtime runs a runtime command (e.g. "docker run") with the given args,
 // inheriting stdin/stdout/stderr.
-func (r Runner) Runtime(ctx context.Context, args ...string) error {
+func (r *runner) Runtime(ctx context.Context, args ...string) error {
 	return r.run(ctx, r.cfg.Command.Runtime, args)
 }
 
 // RuntimeOutput runs a runtime command and returns its combined output.
-func (r Runner) RuntimeOutput(ctx context.Context, args ...string) ([]byte, error) {
+func (r *runner) RuntimeOutput(ctx context.Context, args ...string) ([]byte, error) {
 	return r.output(ctx, r.cfg.Command.Runtime, args)
 }
 
 // ComposeOutput runs a compose command and returns its combined output.
-func (r Runner) ComposeOutput(ctx context.Context, args ...string) ([]byte, error) {
+func (r *runner) ComposeOutput(ctx context.Context, args ...string) ([]byte, error) {
 	return r.output(ctx, r.cfg.Command.Compose, args)
 }
 
@@ -53,7 +60,7 @@ func buildArgs(command string) (string, []string, error) {
 	return parts[0], parts[1:], nil
 }
 
-func (r Runner) run(ctx context.Context, command string, args []string) error {
+func (r *runner) run(ctx context.Context, command string, args []string) error {
 	bin, baseArgs, err := buildArgs(command)
 	if err != nil {
 		return err
@@ -71,7 +78,7 @@ func (r Runner) run(ctx context.Context, command string, args []string) error {
 	return nil
 }
 
-func (r Runner) output(ctx context.Context, command string, args []string) ([]byte, error) {
+func (r *runner) output(ctx context.Context, command string, args []string) ([]byte, error) {
 	bin, baseArgs, err := buildArgs(command)
 	if err != nil {
 		return nil, err

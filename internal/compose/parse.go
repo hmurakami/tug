@@ -137,8 +137,8 @@ func parsePair(hostStr, containerStr string) (Port, error) {
 
 // stripProto removes an optional "/tcp" or "/udp" suffix from a port string.
 func stripProto(s string) string {
-	if i := strings.Index(s, "/"); i >= 0 {
-		return s[:i]
+	if before, _, found := strings.Cut(s, "/"); found {
+		return before
 	}
 	return s
 }

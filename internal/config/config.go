@@ -31,7 +31,7 @@ var validKinds = map[string]struct{}{
 	"tcp":  {},
 }
 
-func (s *ServiceConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *ServiceConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	type raw ServiceConfig // avoid recursion
 	var v raw
 	if err := unmarshal(&v); err != nil {

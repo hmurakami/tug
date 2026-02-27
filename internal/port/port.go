@@ -28,7 +28,7 @@ func Compute(project, service string, containerPort uint16, used map[uint16]stru
 	size := uint32(rangeMax - rangeMin)
 	port := uint16(h.Sum32()%size) + rangeMin
 
-	for i := 0; i < int(size); i++ {
+	for range int(size) {
 		if _, ok := used[port]; !ok {
 			return port, nil
 		}

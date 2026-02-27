@@ -97,6 +97,10 @@ func handleDown(ctx context.Context, flags globalFlags, args []string) error {
 }
 
 func handlePs(ctx context.Context, flags globalFlags, args []string) error {
+	if !tugActive() {
+		return nil
+	}
+
 	e, err := configure(flags)
 	if err != nil {
 		return err

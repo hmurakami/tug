@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -72,7 +73,15 @@ func Parse(path string) (Project, error) {
 	}
 
 	proj := Project{Name: cf.Name}
-	for name, svc := range cf.Services {
+
+	names := make([]string, 0, len(cf.Services))
+	for name := range cf.Services {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	for _, name := range names {
+		svc := cf.Services[name]
 		s := Service{
 			Name:  name,
 			Image: svc.Image,

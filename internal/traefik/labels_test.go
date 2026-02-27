@@ -1,6 +1,7 @@
 package traefik_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,23 +13,15 @@ func TestLabels_WithPort(t *testing.T) {
 
 	labels := traefik.Labels("myapp", "api", 3000)
 
-	want := map[string]bool{
-		"traefik.enable=true": false,
-		"traefik.http.routers.myapp-api.rule=Host(`api.myapp.localhost`)": false,
-		"traefik.http.services.myapp-api.loadbalancer.server.port=3000":   false,
+	want := []string{
+		"traefik.enable=true",
+		"traefik.http.routers.myapp-api.rule=Host(`api.myapp.localhost`)",
+		"traefik.http.services.myapp-api.loadbalancer.server.port=3000",
 	}
 
-	for _, l := range labels {
-		for k := range want {
-			if strings.Contains(l, k) || l == k {
-				want[k] = true
-			}
-		}
-	}
-
-	for k, found := range want {
-		if !found {
-			t.Errorf("missing label: %s", k)
+	for _, w := range want {
+		if !slices.Contains(labels, w) {
+			t.Errorf("missing label: %s", w)
 		}
 	}
 }

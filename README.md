@@ -78,6 +78,7 @@ tug up                    # start services with auto-routing
 tug down                  # stop services and clean up
 tug ps                    # show URLs and port mappings
 tug ps --json             # machine-readable output
+tug prune                 # stop Traefik and remove tug network
 tug logs -f api           # passthrough to docker compose
 tug exec db psql          # passthrough to docker compose
 ```

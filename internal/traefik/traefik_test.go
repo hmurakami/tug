@@ -233,3 +233,64 @@ func TestEnsureRunning_StartFails(t *testing.T) {
 		t.Errorf("expected 'image pull failed' in error, got %v", err)
 	}
 }
+
+func TestStop_ContainerMissing(t *testing.T) {
+	t.Parallel()
+
+	m := &mockRunner{
+		runtimeOutputFunc: func(_ []string) ([]byte, error) {
+			return nil, errors.New("No such container: tug-traefik")
+		},
+	}
+
+	if err := traefik.Stop(t.Context(), m); err != nil {
+		t.Fatalf("expected no error for missing container, got %v", err)
+	}
+	// Should still attempt network removal.
+	if len(m.runtimeCalls) != 1 {
+		t.Fatalf("expected 1 Runtime call (network rm), got %d", len(m.runtimeCalls))
+	}
+	if m.runtimeCalls[0][0] != "network" {
+		t.Errorf("expected 'network' command, got %q", m.runtimeCalls[0][0])
+	}
+}
+
+func TestStop_ContainerExists(t *testing.T) {
+	t.Parallel()
+
+	m := &mockRunner{
+		runtimeOutputFunc: func(_ []string) ([]byte, error) {
+			return []byte("tug-traefik\n"), nil
+		},
+	}
+
+	if err := traefik.Stop(t.Context(), m); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should attempt network removal.
+	if len(m.runtimeCalls) != 1 {
+		t.Fatalf("expected 1 Runtime call (network rm), got %d", len(m.runtimeCalls))
+	}
+}
+
+func TestStop_RmError(t *testing.T) {
+	t.Parallel()
+
+	m := &mockRunner{
+		runtimeOutputFunc: func(_ []string) ([]byte, error) {
+			return nil, errors.New("Cannot connect to the Docker daemon")
+		},
+	}
+
+	err := traefik.Stop(t.Context(), m)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "removing traefik container") {
+		t.Errorf("expected 'removing traefik container' in error, got %v", err)
+	}
+	// Should not attempt network removal when rm fails.
+	if len(m.runtimeCalls) != 0 {
+		t.Errorf("expected no Runtime calls, got %d", len(m.runtimeCalls))
+	}
+}

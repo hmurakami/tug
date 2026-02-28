@@ -129,11 +129,57 @@ func ParseBytes(data []byte) (Project, error) {
 	return proj, nil
 }
 
+// expandPortEnv substitutes ${VAR} and ${VAR:-default} in port strings (single occurrence).
+// Used so that entries like "${APP_PORT:-80}:80" are resolved before numeric parsing.
+func expandPortEnv(s string) string {
+	const prefix, suffix = "${", "}"
+	start := strings.Index(s, prefix)
+	if start == -1 {
+		return s
+	}
+	// index of "}" within s[start:]; braceEnd is the byte after the closing "}"
+	relBrace := strings.Index(s[start:], suffix)
+	if relBrace == -1 {
+		return s
+	}
+	braceEnd := start + relBrace + len(suffix)
+	inner := s[start+len(prefix) : start+relBrace]
+	var name, def string
+	if idx := strings.Index(inner, ":-"); idx != -1 {
+		name = strings.TrimSpace(inner[:idx])
+		def = strings.TrimSpace(inner[idx+2:])
+	} else {
+		name = strings.TrimSpace(inner)
+	}
+	if name == "" {
+		return s
+	}
+	if val := os.Getenv(name); val != "" {
+		return s[:start] + val + s[braceEnd:]
+	}
+	return s[:start] + def + s[braceEnd:]
+}
+
+// expandPortEnvAll expands all ${VAR} and ${VAR:-default} in s (repeatedly until no more).
+// Required so that "${APP_PORT:-80}:80" is resolved to "80:80" before splitting on ":".
+func expandPortEnvAll(s string) string {
+	for {
+		next := expandPortEnv(s)
+		if next == s {
+			return s
+		}
+		s = next
+	}
+}
+
 // parseShortPort parses port strings in Docker Compose short syntax.
 // Returns (port, true, nil) for mappings with a host port,
 // or (Port{}, false, nil) for container-only ports (e.g. "8080") which tug skips.
+// Host and container parts may use ${VAR} or ${VAR:-default}; they are expanded before parsing.
+// The whole string is expanded before splitting on ":" so that "${APP_PORT:-80}:80" is correct.
 func parseShortPort(raw string) (Port, bool, error) {
-	parts := strings.Split(raw, ":")
+	expanded := expandPortEnvAll(raw)
+	parts := strings.Split(expanded, ":")
 	switch len(parts) {
 	case 1:
 		// "container" only — no host port to remap, skip
@@ -189,7 +235,7 @@ func parseLongPort(node *yaml.Node) (Port, bool, error) {
 	if lp.Published == "" || lp.Target == 0 {
 		return Port{}, false, nil
 	}
-	pub, err := strconv.ParseUint(lp.Published, 10, 16)
+	pub, err := strconv.ParseUint(expandPortEnv(lp.Published), 10, 16)
 	if err != nil {
 		return Port{}, false, fmt.Errorf("invalid published port %q: %w", lp.Published, err)
 	}

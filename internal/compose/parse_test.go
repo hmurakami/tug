@@ -320,3 +320,52 @@ func TestParse_InvalidPort(t *testing.T) {
 		t.Fatal("expected error for invalid port")
 	}
 }
+
+func TestParse_PortsWithEnvExpansion(t *testing.T) {
+	// Do not use t.Parallel(); subtests use t.Setenv.
+
+	content := `name: myapp
+services:
+  api:
+    image: nginx:alpine
+    ports:
+      - "${APP_PORT:-80}:80"
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compose.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Unset APP_PORT: should use default 80
+	t.Run("default", func(t *testing.T) {
+		t.Setenv("APP_PORT", "")
+		proj, err := compose.Parse(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(proj.Services[0].Ports) != 1 {
+			t.Fatalf("ports: got %d, want 1", len(proj.Services[0].Ports))
+		}
+		p := proj.Services[0].Ports[0]
+		if p.Host != 80 || p.Container != 80 {
+			t.Errorf("ports[0]: got Host=%d Container=%d, want 80/80", p.Host, p.Container)
+		}
+	})
+
+	// Set APP_PORT: should use env value
+	t.Run("from_env", func(t *testing.T) {
+		t.Setenv("APP_PORT", "3000")
+		proj, err := compose.Parse(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(proj.Services[0].Ports) != 1 {
+			t.Fatalf("ports: got %d, want 1", len(proj.Services[0].Ports))
+		}
+		p := proj.Services[0].Ports[0]
+		if p.Host != 3000 || p.Container != 80 {
+			t.Errorf("ports[0]: got Host=%d Container=%d, want 3000/80", p.Host, p.Container)
+		}
+	})
+}

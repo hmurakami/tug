@@ -26,7 +26,7 @@ archives:
 brews:
   - name: tug
     homepage: https://github.com/mickamy/tug
-    description: Replace port conflicts with stable, named URLs for Docker Compose. For humans and agents.
+    description: Replace port conflicts with stable, named URLs for Docker Compose.
     install: |
       bin.install "tug"
     repository:

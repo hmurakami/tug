@@ -93,13 +93,22 @@ func FindComposeFile(dir string) (string, error) {
 }
 
 // Parse reads a compose file and returns a Project.
+// Returns an error if the compose file has no top-level "name".
 func Parse(path string) (Project, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path comes from FindComposeFile, not untrusted input
 	if err != nil {
 		return Project{}, fmt.Errorf("reading compose file: %w", err)
 	}
 
-	return ParseBytes(data)
+	proj, err := ParseBytes(data)
+	if err != nil {
+		return Project{}, err
+	}
+
+	if proj.Name == "" {
+		return Project{}, fmt.Errorf("compose file has no top-level %q", "name")
+	}
+	return proj, nil
 }
 
 // ParseBytes parses compose YAML from raw bytes.

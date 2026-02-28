@@ -3,6 +3,7 @@ package compose_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mickamy/tug/internal/compose"
@@ -127,6 +128,30 @@ services:
 	}
 	if len(pg.Ports) != 1 || pg.Ports[0].Host != 5432 || pg.Ports[0].Container != 5432 {
 		t.Errorf("postgres ports: got %+v, want [{Host:5432 Container:5432}]", pg.Ports)
+	}
+}
+
+func TestParse_MissingName_Error(t *testing.T) {
+	t.Parallel()
+
+	content := `services:
+  web:
+    image: nginx
+    ports:
+      - "8080:80"
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compose.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := compose.Parse(path)
+	if err == nil {
+		t.Fatal("expected error when top-level name is missing")
+	}
+	if !strings.Contains(err.Error(), "name") {
+		t.Errorf("error should mention name: %v", err)
 	}
 }
 

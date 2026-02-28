@@ -14,4 +14,5 @@ func (s *stringSlice) Set(v string) error {
 type globalFlags struct {
 	composeFile   string
 	overrideFiles stringSlice
+	name          string
 }

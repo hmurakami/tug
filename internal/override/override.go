@@ -2,6 +2,7 @@ package override
 
 import (
 	"fmt"
+	"os"
 
 	"gopkg.in/yaml.v3"
 
@@ -127,7 +128,8 @@ func detectPortKind(containerPort uint16, sc config.ServiceConfig) ServiceKind {
 // Generate produces the override YAML for the given project and classified services.
 // HTTP ports get Traefik labels + tug network; TCP ports get deterministic port
 // remapping with !override to replace (not append) the original ports.
-func Generate(proj compose.Project, services []ClassifiedService) ([]byte, error) {
+// If nameOverride is non-empty, the top-level "name" is written so docker compose uses it.
+func Generate(proj compose.Project, services []ClassifiedService, nameOverride string) ([]byte, error) {
 	root := map[string]any{
 		"services": buildServices(proj.Name, services),
 		"networks": map[string]any{
@@ -135,6 +137,9 @@ func Generate(proj compose.Project, services []ClassifiedService) ([]byte, error
 				"external": true,
 			},
 		},
+	}
+	if nameOverride != "" {
+		root["name"] = nameOverride
 	}
 
 	data, err := yaml.Marshal(root)
@@ -195,6 +200,25 @@ func buildService(projectName string, cs ClassifiedService) map[string]any {
 	}
 
 	return svc
+}
+
+// ReadProjectName reads the top-level "name" from an override YAML file.
+// Returns the name and true if present and non-empty, otherwise "", false.
+func ReadProjectName(overridePath string) (string, bool) {
+	data, err := os.ReadFile(overridePath) //nolint:gosec // path is from env
+	if err != nil {
+		return "", false
+	}
+	var root struct {
+		Name string `yaml:"name"`
+	}
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return "", false
+	}
+	if root.Name == "" {
+		return "", false
+	}
+	return root.Name, true
 }
 
 // overrideSeq marshals as a YAML sequence with the !override tag.

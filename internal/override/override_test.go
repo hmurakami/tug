@@ -1,6 +1,8 @@
 package override_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -303,7 +305,7 @@ func TestGenerate_HTTP(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := override.Generate(proj, classified)
+	data, err := override.Generate(proj, classified, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -334,7 +336,7 @@ func TestGenerate_TCP(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := override.Generate(proj, classified)
+	data, err := override.Generate(proj, classified, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -382,7 +384,7 @@ func TestGenerate_MixedHTTPAndTCP(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := override.Generate(proj, classified)
+	data, err := override.Generate(proj, classified, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -423,7 +425,7 @@ func TestGenerate_NetworkSection(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := override.Generate(proj, classified)
+	data, err := override.Generate(proj, classified, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -434,5 +436,64 @@ func TestGenerate_NetworkSection(t *testing.T) {
 	}
 	if !strings.Contains(out, "external: true") {
 		t.Errorf("missing external: true in output:\n%s", out)
+	}
+}
+
+func TestGenerate_WithNameOverride(t *testing.T) {
+	t.Parallel()
+
+	proj := compose.Project{
+		Name: "baseapp",
+		Services: []compose.Service{
+			{Name: "api", Image: "node:20", Ports: []compose.Port{{Host: 3000, Container: 3000}}},
+		},
+	}
+	classified, err := override.Classify(proj, config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := override.Generate(proj, classified, "myproject")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := string(data)
+	if !strings.Contains(out, "name: myproject") {
+		t.Errorf("expected name override in output:\n%s", out)
+	}
+	// Labels should still use proj.Name when building (handleUp sets proj.Name before calling)
+	// This test passes nameOverride so the file has name; host in labels uses proj.Name (baseapp)
+	if !strings.Contains(out, "api.baseapp.localhost") {
+		t.Errorf("expected host from proj.Name in output:\n%s", out)
+	}
+}
+
+func TestReadProjectName(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "override.yaml")
+
+	// Missing file
+	if _, ok := override.ReadProjectName(path); ok {
+		t.Error("ReadProjectName: expected false for missing file")
+	}
+
+	// File without name
+	if err := os.WriteFile(path, []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := override.ReadProjectName(path); ok {
+		t.Error("ReadProjectName: expected false when name absent")
+	}
+
+	// File with name
+	if err := os.WriteFile(path, []byte("name: myapp\nservices: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := override.ReadProjectName(path)
+	if !ok || got != "myapp" {
+		t.Errorf("ReadProjectName: got %q, %v; want \"myapp\", true", got, ok)
 	}
 }

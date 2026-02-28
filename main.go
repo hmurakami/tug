@@ -27,6 +27,7 @@ func run() int {
 	fs.StringVar(&flags.composeFile, "f", "", "")
 	fs.StringVar(&flags.composeFile, "file", "", "")
 	fs.Var(&flags.overrideFiles, "override", "")
+	fs.StringVar(&flags.name, "name", "", "")
 	fs.BoolVar(&showVersion, "version", false, "")
 	fs.BoolVar(&showVersion, "v", false, "")
 
@@ -75,7 +76,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, `tug - Docker Compose with auto-routing
 
 Usage:
-  tug [-f <file>] [--override <file>]... <command> [args...]
+  tug [-f <file>] [--override <file>]... [--name <name>] <command> [args...]
 
 Commands:
   up       Start services with Traefik routing and deterministic ports
@@ -90,6 +91,7 @@ Any other command is forwarded to docker compose as-is.
 Flags:
   -f, --file       Specify compose file (default: auto-detect)
   --override       Layer an additional override file (repeatable)
+  --name           Project name (written to .tug/override.yaml, overrides compose name)
   --version, -v    Print version
   -h, --help       Show this help
 `)

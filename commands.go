@@ -51,13 +51,16 @@ func handleUp(ctx context.Context, flags globalFlags, args []string) error {
 	if err != nil {
 		return fmt.Errorf("parsing compose file: %w", err)
 	}
+	if flags.name != "" {
+		proj.Name = flags.name
+	}
 
 	classified, err := override.Classify(proj, e.cfg)
 	if err != nil {
 		return fmt.Errorf("classifying services: %w", err)
 	}
 
-	data, err := override.Generate(proj, classified)
+	data, err := override.Generate(proj, classified, flags.name)
 	if err != nil {
 		return fmt.Errorf("generating override: %w", err)
 	}
@@ -113,6 +116,9 @@ func handlePs(ctx context.Context, flags globalFlags, args []string) error {
 	proj, err := compose.Parse(e.composeFile)
 	if err != nil {
 		return fmt.Errorf("parsing compose file: %w", err)
+	}
+	if name, ok := override.ReadProjectName(overridePath); ok {
+		proj.Name = name
 	}
 
 	classified, err := override.Classify(proj, e.cfg)

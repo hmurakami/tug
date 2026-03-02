@@ -216,18 +216,15 @@ func TestEnsureRunning_StoppedContainer_RemovesAndStarts(t *testing.T) {
 	if err := traefik.EnsureRunning(t.Context(), m, config.Traefik{Port: 80}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// "rm" via Runtime, "run" via RuntimeOutput
-	if len(m.runtimeCalls) != 1 {
-		t.Fatalf("expected 1 Runtime call, got %d: %v", len(m.runtimeCalls), m.runtimeCalls)
+	// network inspect, container inspect, rm, run — all via RuntimeOutput
+	if len(m.runtimeOutputCalls) != 4 {
+		t.Fatalf("expected 4 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
 	}
-	if m.runtimeCalls[0][0] != "rm" {
-		t.Errorf("expected 'rm' as Runtime call, got %q", m.runtimeCalls[0][0])
+	if m.runtimeOutputCalls[2][0] != "rm" {
+		t.Errorf("expected 'rm' as 3rd call, got %q", m.runtimeOutputCalls[2][0])
 	}
-	if len(m.runtimeOutputCalls) != 3 {
-		t.Fatalf("expected 3 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
-	}
-	if m.runtimeOutputCalls[2][0] != "run" {
-		t.Errorf("expected 'run' as last RuntimeOutput call, got %q", m.runtimeOutputCalls[2][0])
+	if m.runtimeOutputCalls[3][0] != "run" {
+		t.Errorf("expected 'run' as 4th call, got %q", m.runtimeOutputCalls[3][0])
 	}
 }
 
@@ -361,12 +358,12 @@ func TestStop_ContainerMissing(t *testing.T) {
 	if err := traefik.Stop(t.Context(), m); err != nil {
 		t.Fatalf("expected no error for missing container, got %v", err)
 	}
-	// Should still attempt network removal.
-	if len(m.runtimeCalls) != 1 {
-		t.Fatalf("expected 1 Runtime call (network rm), got %d", len(m.runtimeCalls))
+	// rm (fails with "No such container") + network rm = 2 RuntimeOutput calls.
+	if len(m.runtimeOutputCalls) != 2 {
+		t.Fatalf("expected 2 RuntimeOutput calls, got %d", len(m.runtimeOutputCalls))
 	}
-	if m.runtimeCalls[0][0] != "network" {
-		t.Errorf("expected 'network' command, got %q", m.runtimeCalls[0][0])
+	if m.runtimeOutputCalls[1][0] != "network" {
+		t.Errorf("expected 'network' command, got %q", m.runtimeOutputCalls[1][0])
 	}
 }
 
@@ -382,9 +379,9 @@ func TestStop_ContainerExists(t *testing.T) {
 	if err := traefik.Stop(t.Context(), m); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Should attempt network removal.
-	if len(m.runtimeCalls) != 1 {
-		t.Fatalf("expected 1 Runtime call (network rm), got %d", len(m.runtimeCalls))
+	// rm + network rm = 2 RuntimeOutput calls.
+	if len(m.runtimeOutputCalls) != 2 {
+		t.Fatalf("expected 2 RuntimeOutput calls, got %d", len(m.runtimeOutputCalls))
 	}
 }
 
@@ -404,8 +401,8 @@ func TestStop_RmError(t *testing.T) {
 	if !strings.Contains(err.Error(), "removing traefik container") {
 		t.Errorf("expected 'removing traefik container' in error, got %v", err)
 	}
-	// Should not attempt network removal when rm fails.
-	if len(m.runtimeCalls) != 0 {
-		t.Errorf("expected no Runtime calls, got %d", len(m.runtimeCalls))
+	// Should not attempt network removal when rm fails (only 1 RuntimeOutput call: rm).
+	if len(m.runtimeOutputCalls) != 1 {
+		t.Errorf("expected 1 RuntimeOutput call, got %d", len(m.runtimeOutputCalls))
 	}
 }

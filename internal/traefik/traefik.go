@@ -54,7 +54,7 @@ func EnsureRunning(ctx context.Context, runner exec.Runner, cfg config.Traefik) 
 
 	// Remove stopped/dead container if it exists (inspect succeeded but not running).
 	if err == nil {
-		_ = runner.Runtime(ctx, "rm", "-f", containerName)
+		_, _ = runner.RuntimeOutput(ctx, "rm", "-f", containerName)
 	}
 
 	runArgs := []string{
@@ -95,6 +95,6 @@ func Stop(ctx context.Context, runner exec.Runner) error {
 		}
 	}
 	// Network removal may fail if other containers are still attached; ignore.
-	_ = runner.Runtime(ctx, "network", "rm", networkName)
+	_, _ = runner.RuntimeOutput(ctx, "network", "rm", networkName)
 	return nil
 }

@@ -96,6 +96,7 @@ func (r *runner) silent(ctx context.Context, command string, args []string) ([]b
 	cmdArgs = append(cmdArgs, baseArgs...)
 	cmdArgs = append(cmdArgs, args...)
 	cmd := exec.CommandContext(ctx, bin, cmdArgs...) //nolint:gosec // command comes from user config, not untrusted input
+	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {

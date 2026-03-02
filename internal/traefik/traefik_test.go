@@ -13,9 +13,11 @@ import (
 // mockRunner records calls and returns preconfigured responses.
 type mockRunner struct {
 	runtimeCalls       [][]string
+	runtimeSilentCalls [][]string
 	runtimeOutputCalls [][]string
 
 	runtimeFunc       func(args []string) error
+	runtimeSilentFunc func(args []string) ([]byte, error)
 	runtimeOutputFunc func(args []string) ([]byte, error)
 }
 
@@ -25,6 +27,14 @@ func (m *mockRunner) Runtime(_ context.Context, args ...string) error {
 		return m.runtimeFunc(args)
 	}
 	return nil
+}
+
+func (m *mockRunner) RuntimeSilent(_ context.Context, args ...string) ([]byte, error) {
+	m.runtimeSilentCalls = append(m.runtimeSilentCalls, args)
+	if m.runtimeSilentFunc != nil {
+		return m.runtimeSilentFunc(args)
+	}
+	return nil, nil
 }
 
 func (m *mockRunner) RuntimeOutput(_ context.Context, args ...string) ([]byte, error) {
@@ -61,26 +71,20 @@ func TestEnsureNetwork_AlreadyExists(t *testing.T) {
 func TestEnsureNetwork_Creates(t *testing.T) {
 	t.Parallel()
 
-	call := 0
 	m := &mockRunner{
-		runtimeOutputFunc: func(args []string) ([]byte, error) {
-			call++
-			if call == 1 {
-				// "network inspect tug" fails → network does not exist
-				return nil, errors.New("No such network: tug")
-			}
-			// "network create tug" succeeds
-			return []byte("abc123\n"), nil
+		runtimeOutputFunc: func(_ []string) ([]byte, error) {
+			// "network inspect tug" fails → network does not exist
+			return nil, errors.New("No such network: tug")
 		},
 	}
 
 	if err := traefik.EnsureNetwork(t.Context(), m); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(m.runtimeOutputCalls) != 2 {
-		t.Fatalf("expected 2 RuntimeOutput calls, got %d", len(m.runtimeOutputCalls))
+	if len(m.runtimeSilentCalls) != 1 {
+		t.Fatalf("expected 1 RuntimeSilent call, got %d", len(m.runtimeSilentCalls))
 	}
-	got := strings.Join(m.runtimeOutputCalls[1], " ")
+	got := strings.Join(m.runtimeSilentCalls[0], " ")
 	if got != "network create tug" {
 		t.Errorf("expected 'network create tug', got %q", got)
 	}
@@ -89,14 +93,11 @@ func TestEnsureNetwork_Creates(t *testing.T) {
 func TestEnsureNetwork_CreateFails(t *testing.T) {
 	t.Parallel()
 
-	call := 0
 	m := &mockRunner{
 		runtimeOutputFunc: func(_ []string) ([]byte, error) {
-			call++
-			if call == 1 {
-				return nil, errors.New("No such network: tug")
-			}
-			// "network create" fails
+			return nil, errors.New("No such network: tug")
+		},
+		runtimeSilentFunc: func(_ []string) ([]byte, error) {
 			return nil, errors.New("permission denied")
 		},
 	}
@@ -167,12 +168,9 @@ func TestEnsureRunning_ContainerNotExist_Starts(t *testing.T) {
 			case 1:
 				// EnsureNetwork: network exists
 				return []byte("{}"), nil
-			case 2:
+			default:
 				// Container inspect: not found
 				return nil, errors.New("no such container")
-			default:
-				// "run" command succeeds
-				return []byte("container-id\n"), nil
 			}
 		},
 	}
@@ -180,15 +178,12 @@ func TestEnsureRunning_ContainerNotExist_Starts(t *testing.T) {
 	if err := traefik.EnsureRunning(t.Context(), m, config.Traefik{Port: 80}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// No Runtime calls (rm not needed); run goes through RuntimeOutput
-	if len(m.runtimeCalls) != 0 {
-		t.Errorf("expected no Runtime calls, got %d: %v", len(m.runtimeCalls), m.runtimeCalls)
+	// "run" goes through RuntimeSilent
+	if len(m.runtimeSilentCalls) != 1 {
+		t.Fatalf("expected 1 RuntimeSilent call, got %d: %v", len(m.runtimeSilentCalls), m.runtimeSilentCalls)
 	}
-	if len(m.runtimeOutputCalls) != 3 {
-		t.Fatalf("expected 3 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
-	}
-	if m.runtimeOutputCalls[2][0] != "run" {
-		t.Errorf("expected 'run' command, got %q", m.runtimeOutputCalls[2][0])
+	if m.runtimeSilentCalls[0][0] != "run" {
+		t.Errorf("expected 'run' command, got %q", m.runtimeSilentCalls[0][0])
 	}
 }
 
@@ -203,12 +198,9 @@ func TestEnsureRunning_StoppedContainer_RemovesAndStarts(t *testing.T) {
 			case 1:
 				// EnsureNetwork: network exists
 				return []byte("{}"), nil
-			case 2:
+			default:
 				// Container inspect: exists but stopped
 				return []byte("false\n"), nil
-			default:
-				// "run" command succeeds
-				return []byte("container-id\n"), nil
 			}
 		},
 	}
@@ -216,15 +208,18 @@ func TestEnsureRunning_StoppedContainer_RemovesAndStarts(t *testing.T) {
 	if err := traefik.EnsureRunning(t.Context(), m, config.Traefik{Port: 80}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// network inspect, container inspect, rm, run — all via RuntimeOutput
-	if len(m.runtimeOutputCalls) != 4 {
-		t.Fatalf("expected 4 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
+	// "rm" via RuntimeOutput, "run" via RuntimeSilent
+	if len(m.runtimeOutputCalls) != 3 {
+		t.Fatalf("expected 3 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
 	}
 	if m.runtimeOutputCalls[2][0] != "rm" {
-		t.Errorf("expected 'rm' as 3rd call, got %q", m.runtimeOutputCalls[2][0])
+		t.Errorf("expected 'rm' as 3rd RuntimeOutput call, got %q", m.runtimeOutputCalls[2][0])
 	}
-	if m.runtimeOutputCalls[3][0] != "run" {
-		t.Errorf("expected 'run' as 4th call, got %q", m.runtimeOutputCalls[3][0])
+	if len(m.runtimeSilentCalls) != 1 {
+		t.Fatalf("expected 1 RuntimeSilent call, got %d: %v", len(m.runtimeSilentCalls), m.runtimeSilentCalls)
+	}
+	if m.runtimeSilentCalls[0][0] != "run" {
+		t.Errorf("expected 'run' as RuntimeSilent call, got %q", m.runtimeSilentCalls[0][0])
 	}
 }
 
@@ -233,17 +228,15 @@ func TestEnsureRunning_StartFails(t *testing.T) {
 
 	call := 0
 	m := &mockRunner{
-		runtimeOutputFunc: func(args []string) ([]byte, error) {
+		runtimeOutputFunc: func(_ []string) ([]byte, error) {
 			call++
-			switch call {
-			case 1:
+			if call == 1 {
 				return []byte("{}"), nil
-			case 2:
-				return nil, errors.New("no such container")
-			default:
-				// "run" command fails
-				return nil, errors.New("image pull failed")
 			}
+			return nil, errors.New("no such container")
+		},
+		runtimeSilentFunc: func(_ []string) ([]byte, error) {
+			return nil, errors.New("image pull failed")
 		},
 	}
 
@@ -263,24 +256,20 @@ func TestEnsureRunning_CustomPort(t *testing.T) {
 	m := &mockRunner{
 		runtimeOutputFunc: func(_ []string) ([]byte, error) {
 			call++
-			switch call {
-			case 1:
+			if call == 1 {
 				return []byte("{}"), nil
-			case 2:
-				return nil, errors.New("no such container")
-			default:
-				return []byte("container-id\n"), nil
 			}
+			return nil, errors.New("no such container")
 		},
 	}
 
 	if err := traefik.EnsureRunning(t.Context(), m, config.Traefik{Port: 8080}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(m.runtimeOutputCalls) != 3 {
-		t.Fatalf("expected 3 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
+	if len(m.runtimeSilentCalls) != 1 {
+		t.Fatalf("expected 1 RuntimeSilent call, got %d: %v", len(m.runtimeSilentCalls), m.runtimeSilentCalls)
 	}
-	args := strings.Join(m.runtimeOutputCalls[2], " ")
+	args := strings.Join(m.runtimeSilentCalls[0], " ")
 	if !strings.Contains(args, "127.0.0.1:8080:80") {
 		t.Errorf("expected port binding '127.0.0.1:8080:80' in args, got %q", args)
 	}
@@ -293,24 +282,20 @@ func TestEnsureRunning_DashboardEnabled(t *testing.T) {
 	m := &mockRunner{
 		runtimeOutputFunc: func(_ []string) ([]byte, error) {
 			call++
-			switch call {
-			case 1:
+			if call == 1 {
 				return []byte("{}"), nil
-			case 2:
-				return nil, errors.New("no such container")
-			default:
-				return []byte("container-id\n"), nil
 			}
+			return nil, errors.New("no such container")
 		},
 	}
 
 	if err := traefik.EnsureRunning(t.Context(), m, config.Traefik{Port: 80, Dashboard: true}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(m.runtimeOutputCalls) != 3 {
-		t.Fatalf("expected 3 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
+	if len(m.runtimeSilentCalls) != 1 {
+		t.Fatalf("expected 1 RuntimeSilent call, got %d: %v", len(m.runtimeSilentCalls), m.runtimeSilentCalls)
 	}
-	args := strings.Join(m.runtimeOutputCalls[2], " ")
+	args := strings.Join(m.runtimeSilentCalls[0], " ")
 	if !strings.Contains(args, "--api.insecure=true") {
 		t.Errorf("expected '--api.insecure=true' in args, got %q", args)
 	}
@@ -323,24 +308,20 @@ func TestEnsureRunning_DashboardDisabled(t *testing.T) {
 	m := &mockRunner{
 		runtimeOutputFunc: func(_ []string) ([]byte, error) {
 			call++
-			switch call {
-			case 1:
+			if call == 1 {
 				return []byte("{}"), nil
-			case 2:
-				return nil, errors.New("no such container")
-			default:
-				return []byte("container-id\n"), nil
 			}
+			return nil, errors.New("no such container")
 		},
 	}
 
 	if err := traefik.EnsureRunning(t.Context(), m, config.Traefik{Port: 80, Dashboard: false}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(m.runtimeOutputCalls) != 3 {
-		t.Fatalf("expected 3 RuntimeOutput calls, got %d: %v", len(m.runtimeOutputCalls), m.runtimeOutputCalls)
+	if len(m.runtimeSilentCalls) != 1 {
+		t.Fatalf("expected 1 RuntimeSilent call, got %d: %v", len(m.runtimeSilentCalls), m.runtimeSilentCalls)
 	}
-	args := strings.Join(m.runtimeOutputCalls[2], " ")
+	args := strings.Join(m.runtimeSilentCalls[0], " ")
 	if strings.Contains(args, "--api.insecure") {
 		t.Errorf("expected no '--api.insecure' in args, got %q", args)
 	}

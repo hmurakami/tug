@@ -32,10 +32,7 @@ func EnsureNetwork(ctx context.Context, runner exec.Runner) error {
 	if !strings.Contains(msg, "No such network") && !strings.Contains(msg, "not found") {
 		return fmt.Errorf("inspecting network: %w", err)
 	}
-	if out, err := runner.RuntimeOutput(ctx, "network", "create", networkName); err != nil {
-		if detail := strings.TrimSpace(string(out)); detail != "" {
-			return fmt.Errorf("creating network: %s: %w", detail, err)
-		}
+	if _, err := runner.RuntimeSilent(ctx, "network", "create", networkName); err != nil {
 		return fmt.Errorf("creating network: %w", err)
 	}
 	return nil
@@ -78,10 +75,7 @@ func EnsureRunning(ctx context.Context, runner exec.Runner, cfg config.Traefik) 
 		"--providers.docker.network="+networkName,
 	)
 
-	if out, err := runner.RuntimeOutput(ctx, runArgs...); err != nil {
-		if detail := strings.TrimSpace(string(out)); detail != "" {
-			return fmt.Errorf("starting traefik: %s: %w", detail, err)
-		}
+	if _, err := runner.RuntimeSilent(ctx, runArgs...); err != nil {
 		return fmt.Errorf("starting traefik: %w", err)
 	}
 	return nil

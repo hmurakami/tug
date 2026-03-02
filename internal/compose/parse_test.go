@@ -3,7 +3,6 @@ package compose_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/mickamy/tug/internal/compose"
@@ -131,7 +130,7 @@ services:
 	}
 }
 
-func TestParse_MissingName_Error(t *testing.T) {
+func TestParse_MissingName_Allowed(t *testing.T) {
 	t.Parallel()
 
 	content := `services:
@@ -146,12 +145,12 @@ func TestParse_MissingName_Error(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := compose.Parse(path)
-	if err == nil {
-		t.Fatal("expected error when top-level name is missing")
+	proj, err := compose.Parse(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "name") {
-		t.Errorf("error should mention name: %v", err)
+	if proj.Name != "" {
+		t.Errorf("name: got %q, want empty when missing from file", proj.Name)
 	}
 }
 

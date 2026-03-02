@@ -54,6 +54,9 @@ func handleUp(ctx context.Context, flags globalFlags, args []string) error {
 	if flags.name != "" {
 		proj.Name = flags.name
 	}
+	if proj.Name == "" {
+		return fmt.Errorf("project name is required (set top-level %q in compose file or use --name)", "name")
+	}
 
 	classified, err := override.Classify(proj, e.cfg)
 	if err != nil {
